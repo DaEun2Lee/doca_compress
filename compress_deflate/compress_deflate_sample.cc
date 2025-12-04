@@ -61,6 +61,8 @@ compress_deflate(struct compress_cfg *cfg, char *file_data, size_t file_size)
 
 	/* Allocate resources */
 	resources.mode = COMPRESS_MODE_COMPRESS_DEFLATE;
+	/* Allocate DOCA compress resources */
+	/* TODO: pcie 변경 필요  */
 	result = allocate_compress_resources(cfg->pci_address, max_bufs, &resources);
 	if (result != DOCA_SUCCESS) {
 		DOCA_LOG_ERR("Failed to allocate compress resources: %s", doca_error_get_descr(result));
@@ -68,17 +70,20 @@ compress_deflate(struct compress_cfg *cfg, char *file_data, size_t file_size)
 	}
 	state = resources.state;
 
+	/* DEFLATE 압축 방식으로 복원(디컴프레스)할 때 필요한 최대 버퍼 크기를 반환하는 함수 */
 	result = doca_compress_cap_task_decompress_deflate_get_max_buf_size(doca_dev_as_devinfo(state->dev), &max_buf_size);
 	if (result != DOCA_SUCCESS) {
 		DOCA_LOG_ERR("Failed to query compress max buf size: %s", doca_error_get_descr(result));
 		goto destroy_resources;
 	}
+	/* TODO: file을 분할해서 실행  */
 	if (file_size > max_buf_size) {
 		DOCA_LOG_ERR("Invalid file size. Should be smaller than %lu", max_buf_size);
 		goto destroy_resources;
 	}
 
 	/* Start compress context */
+	/* doca_ctx 핸들을 입력으로 받아 해당 컨텍스트의 하드웨어 자원을 초기화하고 작업 큐 준비 */
 	result = doca_ctx_start(state->ctx);
 	if (result != DOCA_SUCCESS) {
 		DOCA_LOG_ERR("Failed to start context: %s", doca_error_get_descr(result));
@@ -91,12 +96,13 @@ compress_deflate(struct compress_cfg *cfg, char *file_data, size_t file_size)
 		DOCA_LOG_ERR("Failed to allocate memory: %s", doca_error_get_descr(result));
 		goto destroy_resources;
 	}
-
+	/*  메모리 맵(mmap) 객체에 특정 메모리 범위(주소와 크기)를 설정하는 함수 */  
 	result = doca_mmap_set_memrange(state->dst_mmap, dst_buffer, max_buf_size);
 	if (result != DOCA_SUCCESS) {
 		DOCA_LOG_ERR("Failed to set mmap memory range: %s", doca_error_get_descr(result));
 		goto free_dst_buf;
 	}
+	/* 생성된 메모리 맵(doca_mmap) 객체를 시작하여 하드웨어 자원(예: 메모리 등록, 디바이스 매핑)을 활성화하는 함수 */
 	result = doca_mmap_start(state->dst_mmap);
 	if (result != DOCA_SUCCESS) {
 		DOCA_LOG_ERR("Failed to start mmap: %s", doca_error_get_descr(result));
@@ -108,7 +114,6 @@ compress_deflate(struct compress_cfg *cfg, char *file_data, size_t file_size)
 		DOCA_LOG_ERR("Failed to set mmap memory range: %s", doca_error_get_descr(result));
 		goto free_dst_buf;
 	}
-
 	result = doca_mmap_start(state->src_mmap);
 	if (result != DOCA_SUCCESS) {
 		DOCA_LOG_ERR("Failed to start mmap: %s", doca_error_get_descr(result));
@@ -154,7 +159,9 @@ compress_deflate(struct compress_cfg *cfg, char *file_data, size_t file_size)
 	}
 
 	/* Write the result to output file */
+	/* doca_buf 객체의 headroom 영역 시작 주소를 반환하는 함수 */
 	doca_buf_get_head(dst_doca_buf, (void **)&resp_head);
+	/* doca_buf 객체의 dataroom(실제 데이터 영역)에 저장된 유효 데이터 길이를 반환하는 함수 */
 	doca_buf_get_data_len(dst_doca_buf, &data_len);
 	fwrite(resp_head, sizeof(uint8_t), data_len, out_file);
 	DOCA_LOG_INFO("File was compressed successfully and saved in: %s", cfg->output_path);
@@ -162,6 +169,7 @@ compress_deflate(struct compress_cfg *cfg, char *file_data, size_t file_size)
 		DOCA_LOG_INFO("Checksum is %lu", output_checksum);
 
 destroy_dst_buf:
+	/* doca_buf 객체의 참조 카운트(reference count)를 1 감소시키는 함수 */
 	tmp_result = doca_buf_dec_refcount(dst_doca_buf, NULL);
 	if (tmp_result != DOCA_SUCCESS) {
 		DOCA_LOG_ERR("Failed to decrease DOCA destination buffer reference count: %s", doca_error_get_descr(tmp_result));
@@ -176,6 +184,8 @@ destroy_src_buf:
 free_dst_buf:
 	free(dst_buffer);
 destroy_resources:
+	/* Destroy DOCA compress resources */
+	/* This function is defined in compress_common.h */
 	tmp_result = destroy_compress_resources(&resources);
 	if (tmp_result != DOCA_SUCCESS) {
 		DOCA_LOG_ERR("Failed to destroy compress resources: %s", doca_error_get_descr(tmp_result));

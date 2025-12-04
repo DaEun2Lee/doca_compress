@@ -66,30 +66,43 @@ main(int argc, char **argv)
 
 	DOCA_LOG_INFO("Starting the sample");
 
+	/* The pkg-config (*.pc file) for the Arg Parser library is doca-argp. */
 	result = doca_argp_init("doca_compress_deflate", &compress_cfg);
 	if (result != DOCA_SUCCESS) {
 		DOCA_LOG_ERR("Failed to init ARGP resources: %s", doca_error_get_descr(result));
 		goto sample_exit;
 	}
 
+	/* This function is defined in compress_common.h */
+	/* TODO: parameter 변경에 따른 함수 변경 필요 */
 	result = register_compress_params();
 	if (result != DOCA_SUCCESS) {
 		DOCA_LOG_ERR("Failed to register ARGP params: %s", doca_error_get_descr(result));
 		goto argp_cleanup;
 	}
 
+	/*
+	*- 인수 구문 분석: 프로그램의 main 함수로 전달된 argc와 argv 배열을 검토하여, doca_argp_init()에서 정의된 옵션(doca_argp_add_argument로 등록된)과 일치하는지 확인합니다.
+	*- 값 추출 및 저장: 일치하는 옵션이 발견되면, 해당 옵션의 값(인수)을 추출하여 개발자가 지정한 **대상 변수(Target variable)**에 저장합니다.
+	*- 도움말 메시지 처리: 사용자가 표준 도움말 요청 인수(예: -h 또는 --help)를 제공했을 경우, 옵션 목록을 출력하고 프로그램을 종료하는 기능을 수행합니다.
+	*-  유효성 검사 및 오류 처리: 정의되지 않은 인수나 필수 인수가 누락된 경우와 같은 오류를 감지하고, 해당 오류 메시지를 출력하며 적절한 에러 코드를 반환합니다.
+	*/
+	/* TODO: 이 함수는 사용 안함 */
 	result = doca_argp_start(argc, argv);
 	if (result != DOCA_SUCCESS) {
 		DOCA_LOG_ERR("Failed to parse sample input: %s", doca_error_get_descr(result));
 		goto argp_cleanup;
 	}
 
+	/* TODO: 이 함수는 사용 안함 */
 	result = read_file(compress_cfg.file_path, &file_data, &file_size);
 	if (result != DOCA_SUCCESS) {
 		DOCA_LOG_ERR("Failed to read file: %s", doca_error_get_descr(result));
 		goto argp_cleanup;
 	}
 
+	/* This function is defined in compress_deflate_sample.cc */
+	/* TODO: 함수 변경 필요 */
 	result = compress_deflate(&compress_cfg, file_data, file_size);
 	if (result != DOCA_SUCCESS) {
 		DOCA_LOG_ERR("compress_deflate() encountered an error: %s", doca_error_get_descr(result));
